@@ -1,0 +1,109 @@
+define: &group cumo
+
+jobs:
+  - job: "general"
+    partition:
+      type: weekly
+      start: 2024-01-01
+      end: 2024-12-31
+      elements: [Light]
+    assets:
+      - asset: get_cumu_data
+        group: *group
+        module: http_get
+        params:
+          endpoint: https://tartu.platvorm.iot.telia.ee/measurement/measurements
+          auth:
+            basic_auth:
+              username: "{{ env.CUMO_USERNAME }}"
+              password: "{{ env.CUMO_PASSWORD }}"
+          partition_mapping:
+            elements: valueFragmentType #source
+            dates:
+              - dateFrom
+              - dateTo
+          params:
+            pageSize: "{{page_size | default(2000)}}"
+          check_more:
+            condition: "{{page_size | default(2000)}} == len(json_data['measurements'])"
+            parameter: currentPage
+
+      - asset: json_mapper
+        group: *group
+        ins: get_cumu_data
+        module: json_mapper
+        params:
+          mappings:
+            source_id: measurements[*].source.id
+            value: measurements[*].*.*.value | [][]
+            unit: measurements[*].*.*.unit | [][]
+            time: measurements[*].time
+            dal_series: measurements[*].keys(@)[-1]
+
+      - asset: save_data
+        group: *group
+        ins: json_mapper
+        module: write_to_csv
+        params:
+          file_name: "data/light/{date}/{static}.csv"
+          minio:
+            bucket: dagster-integration
+
+      - asset: remove_duplicates
+        group: *group
+        ins: json_mapper
+        module: dict.remove_duplicates
+
+      - asset: aggregate_data
+        group: *group
+        module: ld.date_aggregator
+        ins: remove_duplicates
+        params:
+          date: time
+          value: value
+          value_agg_method: max
+
+      - asset: inject_inventory
+        group: *group
+        ins: aggregate_data
+        module: s3.injection
+        params:
+          minio:
+            bucket: dagster-integration
+            file_name: cumulocity/inventory.csv
+          key: source_id
+          csv_key: id
+          inject_values:
+            name: source_name
+            lat: lat
+            lng: lng
+
+      - asset: validate
+        ins: inject_inventory
+        group: validation
+        module: ld.nan_check
+        params:
+          cols:
+            - source_id
+            - value
+            - time
+            - source_name
+            - lat
+            - lng
+            - test_filed
+          rows: 110_000
+
+      - asset: transform_to_arcgis_format
+        ins: inject_inventory
+        deps:
+          - validate
+        group: arcgis
+        module: transform_to_argcis_format
+
+      - asset: send_data_to_arcgis
+        ins: transform_to_arcgis_format
+        module: send_to_arcgis
+        group: arcgis
+        params:
+          layer_name: katse_2
+          sublayer_name: generalTest

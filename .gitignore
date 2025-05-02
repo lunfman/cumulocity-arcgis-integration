@@ -1,0 +1,10 @@
+.env
+.venv
+.prod-env
+*.pyc
+# tmp files generated during local tests
+tmp*
+terraform
+data
+cumu_inventory.json
+*.ipynb

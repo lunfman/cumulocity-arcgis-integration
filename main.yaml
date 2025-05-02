@@ -1,0 +1,276 @@
+define: &layer_name integratsiooni_näide_(tavaline_andmekonveier)
+
+environment:
+  io_manager:
+    s3:
+      endpoint_url: "{{ env.MINIO_HOST }}"
+      aws_access_key_id: "{{ env.MINIO_ACCESS_KEY }}"
+      aws_secret_access_key: "{{ env.MINIO_SECRET_KEY}}"
+      bucket: dagster-io
+
+resources:
+  - resource: ArcGIS
+    name: arcGIS
+    params:
+      token: ARCGIS_API
+      feature_service_address: "{{ env.FEATURE_SERVER }}"
+      skip_validation: True
+
+  - resource: minio
+    name: minio
+    params:
+      host: "{{ env.MINIO_HOST }}"
+      access_key: MINIO_ACCESS_KEY
+      secret_key: MINIO_SECRET_KEY
+
+jobs:
+  - template: jobs/general_template.yaml
+    prefix: _rr
+    vars:
+      job_name: ratttaringlus
+      partition:
+        type: weekly
+        start: 2024-01-01
+        end: 2024-12-31
+        elements:
+          - "320669904"
+          - "225349082"
+          - "225359144"
+          - "320669905"
+          - "225349116"
+          - "320669906"
+          - "320669907"
+          - "225349119"
+          - "225359163"
+      minio_folder: ratttaringlus
+      arcgis:
+        layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
+        sublayer_name: Rattaringlus(API)
+      remove_tsd: True
+      validate: True
+
+  - template: jobs/general_template.yaml
+    prefix: _light
+    vars:
+      job_name: lights
+      partition:
+        start: 2024-01-01
+        end: 2024-12-31
+        elements: ["Light"]
+      elements_type: valueFragmentType
+      minio_folder: lights
+      arcgis:
+        layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
+        sublayer_name: Lights
+      remove_tsd: True
+
+  - template: jobs/general_template.yaml
+    prefix: _cell
+    vars:
+      job_name: telia_cells
+      partition:
+        type: daily
+        start: 2019-01-02
+        end: 2020-01-03
+        elements: ["Cell"]
+      elements_type: valueFragmentType
+      minio_folder: telia_cells
+      arcgis:
+        layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
+        sublayer_name: TeliaMastid
+      remove_tsd: True
+
+  - template: jobs/general_template.yaml
+    prefix: _eco
+    vars:
+      job_name: eco_counters
+      partition:
+        type: daily
+        start: 2025-01-01
+        end: 2025-02-19
+        elements: ["BicycleIn", "BicycleOut", "PedestrianIn", "PedestrianOut"]
+      elements_type: valueFragmentType
+      minio_folder: eco_counters
+      arcgis:
+        layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
+        sublayer_name: EcoCounters
+
+  - template: jobs/general_template.yaml
+    prefix: _avc
+    vars:
+      job_name: avc
+      partition:
+        type: daily
+        start: 2025-01-01
+        end: 2025-02-19
+        elements: ["VehiclesPerMinute"]
+      elements_type: valueFragmentType
+      minio_folder: avc
+      aggregate:
+        method: sum
+      arcgis:
+        layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
+        sublayer_name: AvcCounters
+        req_cols: ["source_name", "date_", "value_"]
+      validate:
+        rows: 576
+        inventory: True
+
+  - template: jobs/general_template.yaml
+    prefix: _majad
+    vars:
+      job_name: majade_energia
+      partition:
+        type: "daily"
+        start: "2024-07-20"
+        end: "2024-07-21"
+        elements:
+          [
+            "262395761",
+            "262395742",
+            "262395740",
+            "262395758",
+            "262395766",
+            "262395821",
+            "262395710",
+            "262395705",
+            "262395696",
+            "262395744",
+            "262395749",
+            "262395770",
+            "262395829",
+            "262395732",
+            "262395718",
+            "262395725",
+            "262395788",
+            "262395792",
+            "262395815",
+            "262395811",
+            "262395777",
+            "262395780",
+            "262395805",
+            "262395798",
+          ]
+      minio_folder: majade_energia
+      arcgis:
+        layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
+        sublayer_name: Majad(Energia)
+
+  - template: jobs/general_template.yaml
+    prefix: rr_parklad
+    vars:
+      job_name: rr_parklad
+      partition:
+        type: "daily"
+        start: "2024-07-20"
+        end: "2024-07-21"
+        elements:
+          [
+            "227764452",
+            "227764484",
+            "227764497",
+            "227765102",
+            "227765126",
+            "227765127",
+            "227765144",
+            "227765145",
+            "227765157",
+            "227765161",
+            "227765175",
+            "227765201",
+            "227765213",
+            "227765219",
+            "227765235",
+            "227765244",
+            "227765253",
+            "227765257",
+            "262474258",
+            "262474367",
+            "262474574",
+            "262474988",
+            "262475029",
+            "262475064",
+            "262475081",
+            "262475119",
+            "262475150",
+            "262475174",
+            "262475217",
+            "262475250",
+            "262475259",
+            "262475339",
+            "262475391",
+            "262475411",
+            "262475451",
+            "262475487",
+            "262475516",
+            "262475560",
+            "262475586",
+            "262475625",
+            "262475708",
+            "262475991",
+            "262476577",
+            "262476812",
+            "262477172",
+            "262477307",
+            "262477344",
+            "262477381",
+            "262477420",
+            "262477512",
+            "262477540",
+            "262477578",
+            "262477614",
+            "262477651",
+            "262477686",
+            "262477720",
+            "262477755",
+            "262477781",
+            "262477832",
+            "262477858",
+            "262477882",
+            "262477954",
+            "262478003",
+            "321458703",
+            "321458710",
+            "321458714",
+            "463177223",
+            "463177235",
+            "536019087",
+            "536019099",
+            "716072021",
+            "716072031",
+            "716072041",
+            "716072045",
+            "716072051",
+            "716072061",
+            "716072071",
+            "716072081",
+            "716072091",
+            "716072101",
+            "716072112",
+            "716072122",
+            "716072133",
+            "716072143",
+            "839259761",
+            "839259771",
+            "839259773",
+            "839259775",
+            "839259780",
+            "839259791",
+            "839259796",
+          ]
+      minio_folder: rr_parklad
+      arcgis:
+        layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
+        sublayer_name: RattaringlusParklad
+
+  - template: jobs/module_only_rattaringlus.yaml
+    prefix: rr_agg
+
+  - template: jobs/general.yaml
+    prefix: _test
+
+  - template: jobs/eco_new_api.yaml
+    prefix: _new_api
+
+  - template: jobs/new_api_inventory.yaml
+    prefix: _new_api_inventory

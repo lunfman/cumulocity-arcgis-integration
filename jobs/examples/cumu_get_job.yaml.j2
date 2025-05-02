@@ -1,0 +1,39 @@
+jobs:
+  - job: {{job_name}}
+{% if schedule %}
+    schedule:
+      m: {{schedule.m}}
+      h: {{schedule.h}}
+      active: true
+{% endif %}
+    partition:
+      type: {{partition_type}}
+      start: {{partition_start}}
+      end: {{partition_end}}
+      elements: {{params_elements}}
+
+    assets:
+      - template: jobs/assets.yaml
+        prefix: {{prefix}}
+        vars:
+          group: cumu
+          folder_name: {{folder_name}}
+          element_type: {{element_type}}
+
+      - asset: json_mapper_sources
+        group: cumu
+        ins: get_cumu_data
+        module: json_mapper
+        params:
+          direct: True
+          mappings:
+            source_id: measurements[*].source.id
+
+      - asset: inventory
+        group: cumu
+        ins: json_mapper_sources
+        module: inventory
+        params:
+          minio:
+            bucket: dagster-integration
+            file_name: cumulocity/inventory/cumu_inventory.csv

@@ -1,0 +1,21 @@
+FROM python:3.10-slim
+
+RUN pip install \
+    dagster==1.10.13  \
+    dagster-docker==0.26.13  \
+    dagster-postgres==0.26.13  \
+    minio==7.2.15 \
+    pandas==2.2.3  \ 
+    aiohttp==3.11.18 \
+    dagster-aws==0.26.13 \
+    dagster-factory-pipelines==0.1.15
+
+# Add code location code
+WORKDIR /opt/dagster/app
+COPY ./ /opt/dagster/app
+
+# Run dagster code server on port 4000
+EXPOSE 4000
+
+# CMD allows this to be overridden from run launchers or executors to execute runs and steps
+CMD ["dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-f", "cumo/__init__.py"]

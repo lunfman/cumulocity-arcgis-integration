@@ -1,0 +1,90 @@
+jobs:
+  - template: jobs/cumu_get_job.yaml
+    vars:
+      job_name: rattaringlus_data
+      partition_type: &partition_type daily
+      partition_start: &partition_start 2024-07-20
+      partition_end: &partition_end 2024-07-21
+      params_elements: &elements
+        - "320669904"
+        - "225349082"
+        - "225359144"
+        - "320669905"
+        - "225349116"
+        - "320669906"
+        - "320669907"
+        - "225349119"
+        - "225359163"
+      folder_name: rattaringlus
+      #schedule: { "h": "01", "m": "00" }
+
+  - job: rattaringlus_data_to_arcgis
+    triggers:
+      - trigger: on_job
+        params:
+          name: upload_rr_to_arcgis_on_s
+          job: rattaringlus_data
+          state: successful
+    partition:
+      type: *partition_type
+      start: *partition_start
+      end: *partition_end
+    assets:
+      - asset: read_csv_pandas
+        module: read_csv
+        params:
+          file_name: "data/rattaringlus/{key}-{date}.csv"
+          remove_duplicates: True
+          read_all:
+            elements: *elements # list of keys
+            save: "data/rattaringlus/clean/{date}.csv" # will upload united csv to minio the key will be remove
+          minio:
+            bucket: dagster-integration
+
+      - asset: round_time_to_the_nearest_h
+        ins: read_csv_pandas
+        module: round_dates
+        params:
+          date_col: time
+          round_to: H
+          timestamp_to_ms: True
+
+      - asset: create_pivot_2
+        ins: round_time_to_the_nearest_h
+        module: pivot
+        params:
+          pivot_params:
+            index: "time"
+            columns: "unit"
+            values: "value"
+            aggfunc: "sum"
+
+      - asset: rename_df_cols_2
+        ins: create_pivot_2
+        module: rename_df_cols
+        params:
+          columns:
+            time: time_
+            km/h: km_h
+            members/h: members_h
+            trips/h: trips_h
+            users/h: users_h
+
+      - asset: df_to_dict
+        ins: rename_df_cols_2
+        module: df_to_dict
+
+      - asset: transform_to_arcgis_format_1
+        ins: df_to_dict
+        module: transform_to_argcis_format
+
+      - asset: send_data_to_arcgis
+        ins: transform_to_arcgis_format_1
+        module: send_to_arcgis
+        params:
+          create_sublayer: True
+          layer_name: katse_2
+          sublayer_name: Uus
+          create_cols: True
+          col_types:
+            time_: esriFieldTypeDate

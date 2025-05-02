@@ -1,0 +1,103 @@
+# THIS job not working. create_inventory was removed and supported anymore.
+# Example of the job with triggers and table joins
+jobs:
+  - template: jobs/cumu_get_job.yaml
+    vars:
+      partition_type: &partition_type daily
+      partition_start: &partition_start 2025-02-15
+      params_elements:
+        &elements ["BicycleIn", "BicycleOut", "PedestrianIn", "PedestrianOut"]
+      folder_name: eco_counter
+      #schedule: { "h": "2", "m": "00" }
+      job_name: &f_job eco_counter
+      element_type: valueFragmentType
+      create_inventory: true
+
+  - job: upload_data_to_arcgis
+    triggers:
+      - trigger: on_job
+        params:
+          name: my_trigger
+          job: *f_job
+          state: successful
+    partition:
+      type: *partition_type
+      start: *partition_start
+    assets:
+      - asset: combine_csvs
+        module: read_csv
+        params:
+          file_name: "data/eco_counters/{date}/{key}.csv"
+          remove_duplicates: True
+          read_all:
+            elements: *elements
+            save: "data/eco_counters/clean/{date}.csv"
+          minio:
+            bucket: dagster-integration
+
+      - asset: join_inventory_eco_counters
+        deps:
+          - combine_csvs
+        module: join_csvs
+        params:
+          file_names:
+            - data/eco_counters/clean/{date}.csv
+            - cumulocity/inventory/cumu_inventory.csv
+          how: inner
+          join_key: source_id
+          minio:
+            bucket: dagster-integration # expects that in the same bucket
+
+      - asset: change_names
+        ins: join_inventory_eco_counters
+        module: change_names
+        params:
+          col: "source_name"
+          names:
+            - name: Anne
+              contains: anne
+            - name: Riia - Raudtee
+            - name: Riia-Lembitu
+            - name: Mõisavahe
+              contains: mõisavahe
+            - name: Turu
+              contains: kl_turu
+
+      - asset: rename_df_cols
+        ins: change_names
+        module: rename_df_cols
+        params:
+          columns:
+            time: date_
+            value: value_
+            source_name: eco_counter
+
+      - asset: create_pivot
+        ins: rename_df_cols
+        module: pivot
+        params:
+          pivot_params:
+            index: ["date_", "eco_counter", "lat", "lng"]
+            columns: "dal_series"
+            values: "value_"
+            aggfunc: "sum"
+
+      - asset: df_to_dict
+        ins: create_pivot
+        module: df_to_dict
+
+      - asset: transform_to_arcgis_format
+        ins: df_to_dict
+        module: transform_to_argcis_format
+
+      - asset: send_data_to_arcgis
+        ins: transform_to_arcgis_format
+        module: send_to_arcgis
+        params:
+          create_sublayer: True
+          layer_name: katse_2
+          sublayer_name: EcoCountersDaily
+          create_cols: True
+          col_types:
+            eco_counter: esriFieldTypeString
+            date_: esriFieldTypeDate

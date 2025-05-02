@@ -1,0 +1,30 @@
+jobs:
+  - job: create_new_api_inventory
+    assets:
+      - asset: get_objs_pos
+        group: inventory
+        module: http_get
+        params:
+          endpoint: https://reaalajaandmed.tartu.ee/device # it is possible to provide some parameters directly here
+          auth:
+            api_key:
+              key: "{{ env.RA_API }}"
+              key_name: "api_key"
+
+      - asset: extract_data
+        ins: get_objs_pos
+        module: json_mapper
+        params:
+          mappings:
+            device_identity: "[*].device_identity"
+            name: "[*].description"
+            lat: "[*].lat"
+            lng: "[*].long"
+
+      - asset: save_data
+        ins: extract_data
+        module: write_to_csv
+        params:
+          file_name: "new_api/inventory.csv"
+          minio:
+            bucket: dagster-integration

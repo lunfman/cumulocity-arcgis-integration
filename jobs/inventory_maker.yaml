@@ -1,0 +1,36 @@
+jobs:
+  - job: create_cumu_inventory
+    assets:
+      - asset: get_objs_pos
+        group: inventory
+        module: http_get
+        params:
+          endpoint: https://tartu.platvorm.iot.telia.ee/inventory/managedObjects # it is possible to provide some parameters directly here
+          auth:
+            basic_auth:
+              username: "{{ env.CUMO_USERNAME }}"
+              password: "{{ env.CUMO_PASSWORD }}"
+          params:
+            pageSize: "2000"
+            fragmentType: c8y_Position
+          check_more:
+            condition: "2000 == len(json_data['managedObjects'])"
+            parameter: currentPage
+
+      - asset: extract_data
+        ins: get_objs_pos
+        module: json_mapper
+        params:
+          mappings:
+            id: managedObjects[*].id
+            name: managedObjects[*].name
+            lat: managedObjects[*].c8y_Position.lat
+            lng: managedObjects[*].c8y_Position.lng
+
+      - asset: save_data
+        ins: extract_data
+        module: write_to_csv
+        params:
+          file_name: "cumulocity/inventory.csv"
+          minio:
+            bucket: dagster-integration

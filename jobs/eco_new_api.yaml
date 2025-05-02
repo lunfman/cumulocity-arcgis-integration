@@ -1,0 +1,121 @@
+define: &group cumo
+
+jobs:
+  - job: "new_api"
+    schedule:
+      m: 00
+      h: 4
+      # active: true
+    partition:
+      type: daily
+      start: 2025-03-06
+      elements:
+        [
+          pedestrian-out,
+          pedestrian-in,
+          bicycle-out,
+          bicycle-in,
+          truck-in,
+          truck-out,
+          car-in,
+          car-out,
+          bus-in,
+          bus-out,
+        ]
+    assets:
+      - asset: get_cumu_data
+        group: *group
+        module: http_get
+        params:
+          endpoint: https://reaalajaandmed.tartu.ee/measurement
+          auth:
+            api_key:
+              key: "{{ env.RA_API }}"
+              key_name: "api_key"
+          partition_mapping:
+            elements: series_type
+            dates:
+              - date_time_start
+              - date_time_end
+          params:
+            page_size: "1000"
+          check_more:
+            condition: "1000 == len(json_data['measurements'])"
+            parameter: current_page #url param for pages
+
+      - asset: json_mapper
+        group: *group
+        ins: get_cumu_data
+        module: json_mapper
+        params:
+          mappings:
+            source_id: measurements[*].device_identity
+            value_: measurements[*].series[0].value
+            unit: measurements[*].series[0].unit
+            time_: measurements[*].time
+            dal_series: measurements[*].series[0].series_type
+
+      - asset: save_data
+        group: *group
+        ins: json_mapper
+        module: write_to_csv
+        params:
+          file_name: "data/light/{date}/{static}.csv"
+          minio:
+            bucket: dagster-integration
+
+      - asset: remove_duplicates
+        group: *group
+        ins: json_mapper
+        module: dict.remove_duplicates
+
+      - asset: aggregate_data
+        group: *group
+        module: ld.date_aggregator
+        ins: remove_duplicates
+        params:
+          date: time_
+          value: value_
+          value_agg_method: sum
+
+      - asset: pandas_ops
+        group: *group
+        module: ld.pandas_ops
+        ins: aggregate_data
+        params:
+          commands:
+            - 'df["direction"] = df["dal_series"].str.split("-").str[1]'
+            - 'df["dal_series"] = df["dal_series"].str.split("-").str[0]'
+
+      - asset: inject_inventory
+        group: *group
+        ins: pandas_ops
+        module: s3.injection
+        params:
+          minio:
+            bucket: dagster-integration
+            file_name: new_api/inventory.csv
+          key: source_id
+          csv_key: device_identity
+          inject_values:
+            lat: lat
+            lng: lng
+
+      - asset: transform_to_arcgis_format
+        ins: inject_inventory
+        group: arcgis
+        module: transform_to_argcis_format
+
+      - asset: send_data_to_arcgis
+        ins: transform_to_arcgis_format
+        module: send_to_arcgis
+        group: arcgis
+        params:
+          layer_name: integratsiooni_näide_(tavaline_andmekonveier)
+          req_cols:
+            - source_id
+            - time_
+            - value_
+            - dal_series
+            - direction
+          sublayer_name: SuperCounters

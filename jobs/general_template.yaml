@@ -1,0 +1,129 @@
+define: &group cumo
+
+jobs:
+  - job: "{{job_name}}"
+    partition:
+      type: "{{ partition.type | default('daily') }}"
+      start: "{{ partition.start }}"
+      end: "{{ partition.end }}"
+      elements: {{ partition.elements }}
+    assets:
+      - asset: get_cumu_data
+        group: *group
+        module: http_get
+        params:
+          endpoint: https://tartu.platvorm.iot.telia.ee/measurement/measurements
+          auth:
+            basic_auth:
+              username: "{{ env.CUMO_USERNAME }}"
+              password: "{{ env.CUMO_PASSWORD }}"
+          partition_mapping:
+            elements: {{ elements_type | default('source')}}  #"valueFragmentType"
+            dates:
+              - dateFrom
+              - dateTo
+          params:
+            pageSize: "{{page_size | default(2000)}}"
+          check_more:
+            condition: "{{page_size | default(2000)}} == len(json_data['measurements'])"
+            parameter: currentPage
+
+      - asset: json_mapper
+        group: *group
+        ins: get_cumu_data
+        module: json_mapper
+        params:
+          mappings:
+            source_id: measurements[*].source.id
+            value_: measurements[*].*.*.value | [][]
+            unit: measurements[*].*.*.unit | [][]
+            date_: measurements[*].time
+            dal_series: measurements[*].keys(@)[-1]
+      - asset: save_data
+        group: *group
+        ins: json_mapper
+        module: write_to_csv
+        params:
+          file_name: "data/{{minio_folder}}/{date}/{static}.csv"
+          minio:
+            bucket: dagster-integration
+
+      - asset: remove_duplicates
+        group: *group
+        ins: json_mapper
+        module: dict.remove_duplicates
+{% if remove_tsd | default(False) %}
+        params:
+          remove_timeseries_duplicates:
+            base_col: source_id
+            value_col: value_
+{% endif %}
+{% if aggregate | default(False) %}
+      - asset: aggregate_data
+        group: *group
+        module: ld.date_aggregator
+        ins: remove_duplicates
+        params:
+          date: date_
+          value: value_
+          freq: "{{ aggregate.period | default('1H')}}"
+          value_agg_method: "{{ aggregate.method }}"
+{% endif %}
+      - asset: inject_inventory
+        group: *group
+{% if aggregate %}
+        ins: aggregate_data
+{% else %}
+        ins: remove_duplicates
+{% endif %}
+        module: s3.injection
+        params:
+          minio:
+            bucket: dagster-integration
+            file_name: cumulocity/inventory.csv
+          key: source_id
+          csv_key: id
+          inject_values:
+            name: source_name
+            lat: lat
+            lng: lng
+{% if validate %}
+      - asset: validate
+        ins: inject_inventory
+        group: validation
+        module: ld.nan_check
+        params:
+          cols:
+            - source_id
+            - value_
+            - date_
+            - unit
+            - dal_series
+{% if validate.inventory %}
+            - source_name
+            - lat
+            - lng
+{% endif %}
+          rows: "{{ validate.rows | default(1000)}}"
+{% endif %}
+
+      - asset: transform_to_arcgis_format
+{% if validate %}
+        deps:
+          - validate
+{% endif %}
+        ins: inject_inventory
+        group: arcgis
+        module: transform_to_argcis_format
+
+      - asset: send_data_to_arcgis
+        ins: transform_to_arcgis_format
+        module: send_to_arcgis
+        group: arcgis
+        params:
+          layer_name: "{{ arcgis.layer_name }}"
+          sublayer_name: "{{ arcgis.sublayer_name }}"
+{% if arcgis.req_cols %}
+          req_cols: {{ arcgis.req_cols }}
+{% endif %}
+

@@ -1,0 +1,104 @@
+# Some parts are copied from dagster guide
+# https://docs.dagster.io/guides/deploy/deployment-options/docker
+#
+version: "3.8"
+services:
+  postgresql:
+    image: postgres:15
+    container_name: postgresql
+    environment:
+      POSTGRES_USER: "postgres_user"
+      POSTGRES_PASSWORD: "postgres_password"
+      POSTGRES_DB: "dagster"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres_user -d dagster"]
+      interval: 10s
+      timeout: 8s
+      retries: 5
+    networks:
+      - dagster_network
+  dagster_code:
+    build:
+      context: .
+      dockerfile: ./Dockerfile_user
+    container_name: dagster_code
+    image: dagster_code
+    restart: always
+    env_file: .env
+    environment:
+      DAGSTER_CURRENT_IMAGE: "dagster_code"
+    volumes:
+      - ./jobs://opt/dagster/app/jobs
+    networks:
+      - dagster_network
+
+  dagster_webserver:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    entrypoint:
+      - dagster-webserver
+      - -h
+      - "0.0.0.0"
+      - -p
+      - "3000"
+      - -w
+      - workspace.yaml
+    container_name: docker_webserver
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"
+    environment:
+      DAGSTER_PG_USERNAME: "postgres_user"
+      DAGSTER_PG_PASSWORD: "postgres_password"
+      DAGSTER_PG_DB: "dagster"
+      DAGSTER_PG_HOSTNAME: "postgresql"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      dagster_code:
+        condition: service_started
+    networks:
+      - dagster_network
+
+  dagster_daeamon:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    entrypoint:
+      - dagster-daemon
+      - run
+    container_name: dagster_daemon
+    restart: on-failure
+    env_file: .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      dagster_code:
+        condition: service_started
+    networks:
+      - dagster_network
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    environment:
+      - MINIO_ROOT_USER=ROOTNAME
+      - MINIO_ROOT_PASSWORD=CHANGEME123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ~/minio/data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - dagster_network
+networks:
+  dagster_network:
+    driver: bridge
+    name: dagster_network

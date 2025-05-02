@@ -1,0 +1,42 @@
+# This template relies on partition with dates and elements.
+assets:
+  - asset: get_cumu_data
+    group: "{{group}}"
+    module: http_get
+    params:
+      endpoint: https://tartu.platvorm.iot.telia.ee/measurement/measurements # it is possible to provide some parameters directly here
+      auth:
+        basic_auth:
+          username: "{{ env.CUMO_USERNAME }}"
+          password: "{{ env.CUMO_PASSWORD }}"
+      partition_mapping: # This partition mapping allows to some partition values for injecting to the URL such as dates and elements/static
+        elements: "{{element_type | default('source')}}" # the value for fragment in the url
+        dates: # only two options
+          - dateFrom # the name of parameter in url for date from
+          - dateTo # the name of parameter in URL for date to
+      params: # parameters that should be used in the URL
+        pageSize: "{{page_size | default(2000)}}"
+      check_more: # check_more provide option to ask for another page if API can not return all required information via single request
+        condition: "{{page_size | default(2000)}} == len(json_data['measurements'])" # condition for validation
+        parameter: currentPage # parameters to send a get req to for another page
+
+  - asset: json_mapper
+    group: "{{group}}"
+    ins: get_cumu_data
+    module: json_mapper
+    params:
+      mappings:
+        source_id: measurements[*].source.id
+        value: measurements[*].*.*.value | [][]
+        unit: measurements[*].*.*.unit | [][]
+        time: measurements[*].time
+        dal_series: measurements[*].keys(@)[-1]
+
+  - asset: save_data
+    group: "{{group}}"
+    ins: json_mapper
+    module: write_to_csv
+    params:
+      file_name: "data/{{folder_name}}/{date}/{static}.csv"
+      minio:
+        bucket: dagster-integration

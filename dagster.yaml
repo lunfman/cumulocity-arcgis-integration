@@ -1,0 +1,22 @@
+storage:
+  postgres:
+    postgres_db:
+      username:
+        env: DAGSTER_PG_USERNAME
+      password:
+        env: DAGSTER_PG_PASSWORD
+      hostname:
+        env: DAGSTER_PG_HOSTNAME
+      db_name:
+        env: DAGSTER_PG_DB
+      port: 5432
+
+scheduler:
+  module: dagster.core.scheduler
+  class: DagsterDaemonScheduler
+
+schedules:
+  use_threads: true
+  num_workers: 8
+telemetry:
+  enabled: false
