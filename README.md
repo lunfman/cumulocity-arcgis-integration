@@ -4,11 +4,8 @@ This repository contains all files for integration.
 
 # Repository structure
 
-- ansible: Location of ansible playbooks
 - cumo: Location of Dagster logic for the integration
-- grafana: configuration files and dashboards for grafana
 - jobs: custom dagster workflow yaml configurations and templates
-- prometheus: configuration for prometheus
 
 # Description
 
