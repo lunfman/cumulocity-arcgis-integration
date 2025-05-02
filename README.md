@@ -26,3 +26,5 @@ Before using the provided solution, the following requirements should be met
 1. Git clone this repository
 2. Provide all required values in `.env`
 3. docker compose up --build
+
+You should be able to access the Dagster UI by going to http://localhost:3000
