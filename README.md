@@ -9,9 +9,7 @@ This repository contains all files for integration.
 
 # Description
 
-The main files is `main.yaml` where full data pipeline is configured. It utilizes templates and other pipelines from jobs directory.
-Modules can be created by using dagster-factory-pipelines python package, which was developed as a part of this solution.
-More information can be found here: https://pypi.org/project/dagster-factory-pipelines/
+The main file is `main.yaml` where the complete data pipeline is configured. It uses templates and other pipelines from jobs directory. Modules can be created using the dagster-factory-pipelines python package, which was developed as part of this solution. More information can be found here: https://pypi.org/project/dagster-factory-pipelines/
 
 # How to use?
 
