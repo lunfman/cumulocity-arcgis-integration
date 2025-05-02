@@ -24,6 +24,5 @@ Before using the provided solution, the following requirements should be met
 # How to use?
 
 1. Git clone this repository
-2. Provide all required values in `.env-example`
-3. Rename `.env-example` to `.env`
-4. docker compose up --build
+2. Provide all required values in `.env`
+3. docker compose up --build
