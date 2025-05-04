@@ -1,3 +1,6 @@
+# Some parts are copied from dagster guide
+# https://docs.dagster.io/guides/deploy/deployment-options/docker
+# Dagster server and daemon image
 FROM python:3.10-slim
 
 RUN pip install \

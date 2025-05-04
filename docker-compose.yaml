@@ -20,7 +20,7 @@ services:
   dagster_code:
     build:
       context: .
-      dockerfile: ./Dockerfile_user
+      dockerfile: ./Dockerfile.code
     container_name: dagster_code
     image: dagster_code
     restart: always
