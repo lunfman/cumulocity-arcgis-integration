@@ -263,9 +263,6 @@ jobs:
         layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
         sublayer_name: RattaringlusParklad
 
-  - template: jobs/module_only_rattaringlus.yaml
-    prefix: rr_agg
-
   - template: jobs/general.yaml
     prefix: _test
 

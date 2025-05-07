@@ -1,3 +1,5 @@
+# THIS job not working. create_inventory was removed and supported anymore.
+# Example of the job with triggers and table joins
 jobs:
   - template: jobs/cumu_get_job.yaml
     vars:
