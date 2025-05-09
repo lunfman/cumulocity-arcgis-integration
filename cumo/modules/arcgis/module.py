@@ -65,24 +65,6 @@ class ArcGIS(ConfigurableResource):
             response_json = json.loads(data)
             return response_json
 
-
-    # def create_column_in_table(self, layer_name:str, sublayer_id:int, col_name:str, field_type="esriFieldTypeDouble") -> None:
-    #     """
-    #     Creates column in ArcGIS table
-    #     """
-    #     url = f"https://{self.feature_service_address}/arcgis/rest/admin/services/{layer_name}/FeatureServer/{sublayer_id}/addToDefinition"
-    #     obj = {"fields":[{"name":col_name,"type":field_type,"alias":col_name,"nullable":True,"editable":True}]}
-
-    #     params = {
-    #         "f": "json",
-    #         "token": os.getenv(self.token),
-    #         "addToDefinition": json.dumps(obj)
-    #     }
-
-    #     res = requests.post(url, params=params)
-    #     logger.info(res.text)
-    #     logger.info(res.status_code)
-
     def get_layer_cols(self, layer_name:str, sublayer_id:int) -> List[str]:
         """
         Retrieves existing column names for layer_name with sublayer_id
@@ -108,23 +90,6 @@ class ArcGIS(ConfigurableResource):
         res = requests.get(url, params=params)
         logger.info(res.status_code)
         return res.json()["layers"]
-
-
-class validate_tables(ModuleBase):
-    """
-    Validates if columns in table
-    """
-
-    column_names: list
-
-    def validate(self):
-        @asset(
-            **self.args,
-            description="Checks are columns created in ArcGIS"
-        )
-        @timed_asset
-        def validate_table(context:OpExecutionContext, arcGIS:ArcGIS) -> AssetsDefinition:
-            pass
 
 @register_module('transform_to_argcis_format')
 class transform_to_argcis_format(ModuleBase):
@@ -185,18 +150,12 @@ class send_to_arcgis(ModuleBase):
                 )
             @timed_asset
             def load_cumu_data(context:OpExecutionContext, arcGIS:ArcGIS, data:List[dict]) -> None:
-                self.__create_sublayers(arcGIS)
                 self.__get_sublayer_id(arcGIS)
                 self.__validate_table(arcGIS, data[0])
 
                 context.log.info(self.sublayer_id)
                 context.log.info(self.layer_name)
                 context.log.info(self.sublayer_name)
-
-                #self.__create_arcgis_table(context, arcGIS, data)
-                # validate that columns exists
-                # check first object
-
 
                 asyncio.run(self.__main(context, arcGIS, data))
             return load_cumu_data
@@ -223,36 +182,6 @@ class send_to_arcgis(ModuleBase):
             arcgis_res = await asyncio.gather(*tasks)
             for arcgis_res in arcgis_res:
                 context.log.info(arcgis_res)
-
-
-    def __create_arcgis_table(self, context:OpExecutionContext, arcGIS:ArcGIS, data:List[dict]) -> None:
-        """
-        Create missing columns in ArcGIS
-        """
-        if self.create_cols:
-            layer_cols = arcGIS.get_layer_cols(self.layer_name, self.sublayer_id)
-            col_names = [col["name"] for col in layer_cols]
-            cur_cols = list(data[0]["attributes"].keys())
-            context.log.info(col_names)
-            context.log.info(cur_cols)
-            for name in cur_cols:
-                if name not in col_names:
-                    context.log.info("Create col")
-                    if name in self.col_types:
-                        arcGIS.create_column_in_table(self.layer_name, self.sublayer_id, name, field_type=self.col_types[name])
-                    else:
-                        arcGIS.create_column_in_table(self.layer_name, self.sublayer_id, name)
-
-    def __create_sublayers(self, arcGIS:ArcGIS) -> None:
-        """
-        Creates missing sublayer in ArcGIS. Works with a privileged token only.
-        """
-        if self.create_sublayer:
-            layers = arcGIS.get_layers(self.layer_name)
-            layer_names = [layer["name"] for layer in layers]
-
-            if self.sublayer_name not in layer_names:
-                arcGIS.create_layer(self.layer_name, self.sublayer_name)
 
     def __get_sublayer_id(self, arcGIS:ArcGIS) -> None:
             """

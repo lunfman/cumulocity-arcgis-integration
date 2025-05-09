@@ -49,49 +49,7 @@ class write_to_csv(ModuleBase):
                     return
 
                 write_to_csv_file(self.file_name, data)
-            return write_to_csv
-    
-@register_module("join_csvs")
-class join_csvs(ModuleBase):
-
-    minio: Optional[Minio] = None
-    file_names: list[str]
-    join_key: str
-    how: str
-    remove_duplicates:Optional[bool] = False
-    remove_timeseries_duplicates:Optional[bool] = False
-    remove_timeseries_duplicates: Optional[TimeSeriesDuplicate] = None
-    drop_cols: Optional[List[str]] = None
-    
-    def create_asset(self) -> AssetsDefinition:
-            @asset(
-                description="Merges csv into ine dataframe",
-                compute_kind="pandas",
-                required_resource_keys={'minio'} if self.minio else None,
-                **self.asset_args
-            )
-            @df_info
-            def join_csvs(context:OpExecutionContext) -> pd.DataFrame:
-                self.create_pk(context)
-                if self.minio:
-                    context.log.info("Getting files from minio")
-                    dfs = read_csvs_from_minio(self.file_names,self.minio.bucket, context, self.pk)
-                else:
-                    dfs = read_csvs_from_local_pd(self.file_names, self.pk)
-    
-                merged_file = dfs[0]
-
-                for file in dfs[1:]:
-                    merged_file = pd.merge(merged_file, file, on=self.join_key, how=self.how)
-                context.log.info(merged_file.head())
-
-
-                df = remove_duplicates(self.remove_duplicates, merged_file, context)
-                df = remove_timeseries_duplicates(self.remove_timeseries_duplicates.model_dump(), df)
-                df = drop_columns(self.drop_cols, df)
-                return df
-            return join_csvs
-              
+            return write_to_csv 
 
 @register_module("read_csv")
 class read_csv(ModuleBase):
@@ -234,30 +192,6 @@ class pandas_ops(ModuleBase):
             return df
         return pandas_ops
 
-@register_module("pandas_out")    
-class pandas_out(ModuleBase):
-
-    commands: List[str]
-
-    def create_asset(self) -> AssetsDefinition:
-        """
-        Allows to explore df with own code/comamnds
-        """
-        @asset(
-        description="Extract data",
-        compute_kind="pandas",
-        **self.get_custom_asset_args("df")
-        )
-        def pandas_out(context:OpExecutionContext, df:pd.DataFrame) ->  pd.DataFrame:
-            index = 0 
-            while index != len(self.commands):
-                print(self.commands[index])
-                exec(self.commands[index])
-                context.add_output_metadata({f"df_{index}": MetadataValue.md(str(eval(self.commands[index])))})
-                index += 1
-            return df
-        return pandas_out    
-
 @register_module("pivot")
 class pivot(ModuleBase):
 
@@ -298,25 +232,7 @@ class df_to_dict(ModuleBase):
         def df_to_dict(context:OpExecutionContext, df:pd.DataFrame) -> list[dict]:
             return df.to_dict(orient="records")
         return df_to_dict
-    
-@register_module("quest_to_df")
-class quest_to_df(ModuleBase):
-    def create_asset(self) -> AssetsDefinition:
-        """
-        Uses columns and data rows for dataframe creation. Suits for QuestDB API responses
-        """
-        @asset(
-        description="Extract data",
-        compute_kind="pandas",
-        **self.asset_args
-        ) 
-        @df_info
-        def quest_to_df(context:OpExecutionContext, data:dict) -> pd.DataFrame:
-            context.log.info(data.get("dataset"))
-            context.log.info(data.get("columns"))
-            columns = [col["name"] for col in data["columns"]]
-            return pd.DataFrame(pd.DataFrame(data.get("dataset"), columns=columns))
-        return quest_to_df
+
 
 @register_module("rename_df_cols")    
 class rename_df_cols(ModuleBase):
@@ -337,29 +253,6 @@ class rename_df_cols(ModuleBase):
             df = df.rename(columns=self.columns)
             return df
         return rename_df_col
-    
-@register_module("round_dates")    
-class round_dates(ModuleBase):
-
-    date_col: str
-    round_to: str
-    timestamp_to_ms: Optional[bool] = False
-
-    def create_asset(self) -> AssetsDefinition: 
-        @asset(
-        description="Renames pandas columns",
-        compute_kind="pandas",
-        **self.get_custom_asset_args("df")
-        )        
-        def convert_time_col_to_datetime(context:OpExecutionContext, df) -> pd.DataFrame:
-            df[self.date_col] = pd.to_datetime(df[self.date_col])
-            df[self.date_col] = df[self.date_col].dt.floor(self.round_to)
-
-            if self.timestamp_to_ms:
-                df[self.date_col] = df[self.date_col].apply(lambda x: int(x.timestamp() * 1000))
-
-            return  df
-        return convert_time_col_to_datetime
     
 @register_module("remove_rows")        
 class remove_rows(ModuleBase):
@@ -413,27 +306,6 @@ class change_names(ModuleBase):
                 "unique_name": list(df[self.col].unique())})
             return df
         return change_names
-
-@register_module("aggregate")  
-class aggregate(ModuleBase):
-    commands: list[str]
-    def create_asset(self) -> AssetsDefinition:
-        """
-        Allows to run pandas commands for aggregation via commands params
-        """
-        @asset(
-        description="Renames pandas columns",
-        compute_kind="pandas",
-        **self.get_custom_asset_args("df")
-        )
-        @df_rows
-        @df_info
-        def aggregate(context:OpExecutionContext, df:pd.DataFrame) -> pd.DataFrame:
-            new_df = None
-            for command in self.commands:
-                new_df = eval(command)
-            return new_df
-        return aggregate
     
 @register_module("pd.date_aggregator")
 class Aggregator(ModuleBase):

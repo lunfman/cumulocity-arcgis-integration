@@ -262,6 +262,7 @@ jobs:
       arcgis:
         layer_name: *layer_name #integratsiooni_näide_(tavaline_andmekonveier)
         sublayer_name: RattaringlusParklad
+        req_cols: ["source_name", "date_", "value_"]
 
   - template: jobs/general.yaml
     prefix: _test
