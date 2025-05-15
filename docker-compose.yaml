@@ -96,6 +96,9 @@ services:
     volumes:
       - ~/minio/data:/data
     command: server /data --console-address ":9001"
+    entrypoint: >
+      sh -c "mkdir -p /data/dagster-io &&
+             exec minio server /data --console-address ':9001'"
     networks:
       - dagster_network
 networks:
