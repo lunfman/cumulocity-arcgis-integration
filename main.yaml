@@ -272,3 +272,6 @@ jobs:
 
   - template: jobs/new_api_inventory.yaml
     prefix: _new_api_inventory
+
+  - template: jobs/inventory_maker.yaml
+    prefix: _cumu_inv
