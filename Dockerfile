@@ -16,7 +16,7 @@ ENV DAGSTER_HOME=/opt/dagster/dagster_home/
 
 RUN mkdir -p $DAGSTER_HOME
 
-COPY dagster-container.yaml $DAGSTER_HOME/dagster.yaml
-COPY workspace-container.yaml $DAGSTER_HOME/workspace.yaml
+COPY dagster.yaml $DAGSTER_HOME/dagster.yaml
+COPY workspace.yaml $DAGSTER_HOME/workspace.yaml
 
 WORKDIR $DAGSTER_HOME

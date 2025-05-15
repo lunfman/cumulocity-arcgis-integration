@@ -1,3 +1,4 @@
+# https://github.com/dagster-io/dagster/tree/master/examples/deploy_docker
 storage:
   postgres:
     postgres_db:
@@ -10,6 +11,36 @@ storage:
       db_name:
         env: DAGSTER_PG_DB
       port: 5432
+
+run_launcher:
+  module: dagster_docker
+  class: DockerRunLauncher
+  config:
+    env_vars:
+      - DAGSTER_PG_USERNAME
+      - DAGSTER_PG_PASSWORD
+      - DAGSTER_PG_DB
+      - DAGSTER_PG_HOSTNAME
+      - CUMO_USERNAME
+      - CUMO_PASSWORD
+      - ARCGIS_API
+      - FEATURE_SERVER
+      - MINIO_ACCESS_KEY
+      - MINIO_SECRET_KEY
+      - MINIO_HOST
+      - RA_API
+    network: dagster_network
+    container_kwargs:
+      auto_remove: true
+      network_mode: "bridge"
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: QueuedRunCoordinator
+  config:
+    max_concurrent_runs: 2
 
 scheduler:
   module: dagster.core.scheduler
